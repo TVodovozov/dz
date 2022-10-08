@@ -20,38 +20,65 @@ f1dcaeeafeb855965535d77c55782349444b
 """
 
 from hashlib import sha256
-import csv
+from os.path import join, dirname
+from sqlite3 import connect, OperationalError, IntegrityError
 
 
-def login_data():
-    login = input('Введите логин: ')
-    password = input('Введите пароль: ')
-    hash_pass = sha256(login.encode() + password.encode()).hexdigest()
-    return login, hash_pass
+class HashClass:
+    def __int__(self):
+        self.db_obj = join(dirname(__file__), "demo.sqlite")
+        self.conn = connect(self.db_obj)
+        self.crs = self.conn.cursor()
+
+    def create_table(self):
+
+        create_stmt = "CREATE TABLE user_info " \
+                        "(user_login varchar(255), unique user_password varchar(255));"
+        try:
+            self.crs.execute(create_stmt)
+        except OperationalError:
+            print('Таблица уже есть. Не добавляем')
+        else:
+            self.conn.commit()
+            print('Операция прошла успешно, таблица добалена в БД')
+            self.crs.close()
+
+    @staticmethod
+    def get_hash():
+        login = input('Введите логин: ')
+        password = input('Введите пароль: ')
+        hash_pass = sha256(login.encode() + password.encode()).hexdigest()
+        return login, hash_pass
+
+    def register(self):
+        login, reg_hash = self.get_hash()
+        insert_stat = 'INSERT INTO user_info (user_login, user_password)' \
+                      'VALUES (?, ?)'
+        user_info = (login, reg_hash)
+        try:
+            self.crs.execute(insert_stat, user_info)
+        except IntegrityError:
+            print('Вы уже есть в базе, выполните вход')
+        else:
+            self.conn.commit()
+            print('Операцияя прошла успешно, Вы зарегистрировались')
+
+    def log_in(self):
+
+        login, check_hash = self.get_hash()
+
+        select_stml = 'SELECT user_password FROM user_login = ?'
+        self.crs.execute(select_stml, (login,))
+
+        out_hash = self.crs.fetchone()
+
+        if check_hash == out_hash[0]:
+            print('Это вы!')
+        else:
+            print('Вы ввели неверный пароль или еще не регистрировались')
 
 
-def write_login():
-    login, hash_pass = login_data()
-    print(f'В базе данных хранится строка: {hash_pass}')
-    with open("login_data.csv", mode="w") as write_file:
-        file_writer = csv.writer(write_file, delimiter=",", lineterminator="\r")
-        file_writer.writerow([login, hash_pass])
-
-
-def check_login():
-    login, check_pass = login_data()
-    print(check_pass)
-    with open("login_data.csv", mode="r") as read_file:
-        file_reader = csv.reader(read_file, delimiter=",")
-        f = 0
-        for n in file_reader:
-            if login == n[0] and check_pass == n[1]:
-                print('Добро пожаловать')
-                f = 1
-                break
-        if f == 0:
-            print('Пользователь не найден')
-
-
-write_login()
-check_login()
+network = HashClass()
+network.create_table()
+network.register()
+network.log_in()
